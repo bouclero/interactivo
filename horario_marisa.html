@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Horario (Entrada Manual)</title>
+    
+    <!-- Tailwind CSS para un diseño moderno y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Librería para el panel de firma -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .signature-pad-container { border: 2px dashed #cbd5e1; border-radius: 0.5rem; cursor: crosshair; touch-action: none; }
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 50; transition: opacity 0.3s ease; }
+        .modal-content { background-color: white; padding: 2rem; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); max-width: 90%; width: 400px; transition: transform 0.3s ease, opacity 0.3s ease; }
+        .modal-backdrop.hidden { opacity: 0; pointer-events: none; }
+        .modal-backdrop.hidden .modal-content { transform: scale(0.95); opacity: 0; }
+        input[type="date"], input[type="time"] { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Sistema de Control Horario Manual</h1>
+            <p class="text-gray-500 mt-1">Introduce manualmente los datos de la jornada y guárdalos.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Columna de Controles -->
+            <div class="lg:col-span-1 space-y-6">
+                <div id="entryForm" class="bg-white p-6 rounded-lg shadow-md space-y-4">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-2">Nuevo Registro de Jornada</h2>
+                    
+                    <div>
+                        <label for="employeeName" class="block text-sm font-medium text-gray-600">Nombre del Empleado</label>
+                        <input type="text" id="employeeName" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ej: Carlos Pérez">
+                    </div>
+
+                    <div>
+                        <label for="workDate" class="block text-sm font-medium text-gray-600">Fecha de la Jornada</label>
+                        <input type="date" id="workDate" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="clockInTime" class="block text-sm font-medium text-gray-600">Hora de Entrada</label>
+                            <input type="time" id="clockInTime" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label for="clockOutTime" class="block text-sm font-medium text-gray-600">Hora de Salida</label>
+                            <input type="time" id="clockOutTime" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+
+                     <div>
+                        <label for="incidents" class="block text-sm font-medium text-gray-600">Incidencias / Notas</label>
+                        <textarea id="incidents" rows="3" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Añade cualquier observación..."></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600">Firma del Empleado</label>
+                        <div class="mt-1 signature-pad-container bg-gray-50">
+                            <canvas id="signaturePad" class="w-full h-32"></canvas>
+                        </div>
+                        <button id="clearSignatureBtn" class="text-sm text-gray-500 hover:text-gray-700 mt-1">Limpiar firma</button>
+                    </div>
+
+                    <div class="pt-2">
+                        <button id="saveBtn" class="w-full bg-indigo-600 text-white font-bold py-2.5 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                            Guardar Registro
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna de la Tabla de Registros -->
+            <div class="lg:col-span-2">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                        <h2 class="text-xl font-semibold text-gray-700">Registros Guardados</h2>
+                        <div class="flex gap-2">
+                            <input type="file" id="importFile" class="hidden" accept=".txt">
+                            <button id="importBtn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out text-sm">
+                                Importar TXT
+                            </button>
+                            <button id="exportBtn" class="bg-gray-700 text-white font-semibold py-2 px-4 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 ease-in-out text-sm">
+                                Exportar a TXT
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empleado</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entrada</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salida</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Horas</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Incidencias</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Firma</th>
+                                    <th class="relative px-6 py-3"><span class="sr-only">Eliminar</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduleBody" class="bg-white divide-y divide-gray-200"></tbody>
+                        </table>
+                        <p id="noRecords" class="text-center py-8 text-gray-500">Aún no hay registros guardados.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modales -->
+    <div id="messageModal" class="modal-backdrop hidden"><div class="modal-content"><h3 id="modalTitle" class="text-lg font-bold"></h3><p id="modalMessage" class="mt-2 text-sm text-gray-600"></p><div class="mt-4 text-right"><button id="closeModalBtn" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700">Cerrar</button></div></div></div>
+    <div id="confirmModal" class="modal-backdrop hidden"><div class="modal-content"><h3 class="text-lg font-bold text-yellow-600">Confirmar Acción</h3><p class="mt-2 text-sm text-gray-600">¿Estás seguro de que quieres eliminar este registro?</p><div class="mt-6 flex justify-end gap-3"><button id="cancelDeleteBtn" class="bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-md hover:bg-gray-400">Cancelar</button><button id="confirmDeleteBtn" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700">Eliminar</button></div></div></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- ELEMENTOS DEL DOM ---
+    const employeeNameInput = document.getElementById('employeeName');
+    const workDateInput = document.getElementById('workDate');
+    const clockInTimeInput = document.getElementById('clockInTime');
+    const clockOutTimeInput = document.getElementById('clockOutTime');
+    const incidentsInput = document.getElementById('incidents');
+    const signatureCanvas = document.getElementById('signaturePad');
+    const clearSignatureBtn = document.getElementById('clearSignatureBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const scheduleBody = document.getElementById('scheduleBody');
+    const noRecords = document.getElementById('noRecords');
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const importFile = document.getElementById('importFile');
+    const messageModal = document.getElementById('messageModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMessage = document.getElementById('modalMessage');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const confirmModal = document.getElementById('confirmModal');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+    // --- INICIALIZACIÓN ---
+    const signaturePad = new SignaturePad(signatureCanvas, { backgroundColor: 'rgb(249, 250, 251)' });
+    let scheduleRecords = JSON.parse(localStorage.getItem('scheduleRecordsManual')) || [];
+
+    // --- FUNCIONES ---
+    function showMessage(title, message, isError = false) {
+        modalTitle.textContent = title;
+        modalMessage.textContent = message;
+        modalTitle.className = isError ? 'text-lg font-bold text-red-600' : 'text-lg font-bold text-gray-800';
+        messageModal.classList.remove('hidden');
+    }
+
+    function closeModal() { messageModal.classList.add('hidden'); }
+
+    function resizeCanvas() {
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        if (signatureCanvas.offsetWidth > 0 && signatureCanvas.offsetHeight > 0) {
+            if (signatureCanvas.width !== signatureCanvas.offsetWidth * ratio || signatureCanvas.height !== signatureCanvas.offsetHeight * ratio) {
+                const data = signaturePad.toDataURL();
+                signatureCanvas.width = signatureCanvas.offsetWidth * ratio;
+                signatureCanvas.height = signatureCanvas.offsetHeight * ratio;
+                signatureCanvas.getContext("2d").scale(ratio, ratio);
+                signaturePad.clear();
+                signaturePad.fromDataURL(data);
+            }
+        }
+    }
+
+    function renderTable() {
+        scheduleBody.innerHTML = '';
+        if (scheduleRecords.length === 0) {
+            noRecords.classList.remove('hidden');
+            exportBtn.disabled = true;
+            exportBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            noRecords.classList.add('hidden');
+            exportBtn.disabled = false;
+            exportBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            scheduleRecords.forEach((record, index) => {
+                const row = document.createElement('tr');
+                row.className = "hover:bg-gray-50";
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${record.workDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${record.employeeName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">${record.clockInTime}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-semibold">${record.clockOutTime}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 font-bold">${record.totalHours}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title="${record.incidents}">${record.incidents || '---'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${record.signature ? `<img src="${record.signature}" alt="Firma" class="h-8 w-16 object-contain">` : '---'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button class="text-red-600 hover:text-red-900 delete-btn" data-index="${index}">Eliminar</button>
+                    </td>
+                `;
+                scheduleBody.appendChild(row);
+            });
+        }
+    }
+
+    function saveToLocalStorage() {
+        localStorage.setItem('scheduleRecordsManual', JSON.stringify(scheduleRecords));
+    }
+
+    function resetForm() {
+        employeeNameInput.value = '';
+        workDateInput.value = '';
+        clockInTimeInput.value = '';
+        clockOutTimeInput.value = '';
+        incidentsInput.value = '';
+        signaturePad.clear();
+    }
+
+    // --- MANEJADORES DE EVENTOS ---
+    saveBtn.addEventListener('click', () => {
+        const name = employeeNameInput.value.trim();
+        const date = workDateInput.value;
+        const timeIn = clockInTimeInput.value;
+        const timeOut = clockOutTimeInput.value;
+
+        if (!name || !date || !timeIn || !timeOut) {
+            showMessage('Campos incompletos', 'Por favor, rellena el nombre, la fecha y las horas de entrada y salida.', true);
+            return;
+        }
+        if (signaturePad.isEmpty()) {
+            showMessage('Firma requerida', 'La firma del empleado es obligatoria.', true);
+            return;
+        }
+
+        const startDateTime = new Date(`${date}T${timeIn}`);
+        const endDateTime = new Date(`${date}T${timeOut}`);
+
+        if (endDateTime <= startDateTime) {
+            showMessage('Error en las horas', 'La hora de salida debe ser posterior a la hora de entrada.', true);
+            return;
+        }
+
+        const diffMs = endDateTime - startDateTime;
+        const totalHours = `${(diffMs / 3600000).toFixed(2)} h`;
+        const [year, month, day] = date.split('-');
+        const formattedDate = `${day}/${month}/${year}`;
+
+        const newRecord = {
+            id: Date.now(),
+            employeeName: name,
+            workDate: formattedDate,
+            clockInTime: timeIn,
+            clockOutTime: timeOut,
+            totalHours: totalHours,
+            incidents: incidentsInput.value.trim(),
+            signature: signaturePad.toDataURL('image/svg+xml')
+        };
+
+        scheduleRecords.push(newRecord);
+        saveToLocalStorage();
+        renderTable();
+        resetForm();
+        showMessage('Éxito', 'El registro se ha guardado correctamente.');
+    });
+
+    scheduleBody.addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-btn')) {
+            const index = e.target.dataset.index;
+            confirmModal.classList.remove('hidden');
+            confirmDeleteBtn.dataset.index = index;
+        }
+    });
+
+    cancelDeleteBtn.addEventListener('click', () => { confirmModal.classList.add('hidden'); });
+
+    confirmDeleteBtn.addEventListener('click', (e) => {
+        const index = e.currentTarget.dataset.index;
+        if (index !== undefined) {
+            scheduleRecords.splice(index, 1);
+            saveToLocalStorage();
+            renderTable();
+        }
+        confirmModal.classList.add('hidden');
+    });
+
+    exportBtn.addEventListener('click', () => {
+        if (scheduleRecords.length === 0) {
+            showMessage('Sin datos', 'No hay registros para exportar.', true);
+            return;
+        }
+        let txtContent = "REGISTRO DE CONTROL HORARIO\n========================================\n\n";
+        scheduleRecords.forEach(record => {
+            txtContent += `Empleado:     ${record.employeeName}\n`;
+            txtContent += `Fecha:        ${record.workDate}\n`;
+            txtContent += `Entrada:      ${record.clockInTime}\n`;
+            txtContent += `Salida:       ${record.clockOutTime}\n`;
+            txtContent += `Horas Totales: ${record.totalHours}\n`;
+            txtContent += `Incidencias:  ${record.incidents || 'Ninguna'}\n`;
+            txtContent += `Firmado:      ${record.signature ? 'Si' : 'No'}\n`;
+            txtContent += "----------------------------------------\n\n";
+        });
+        const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `control_horario_${new Date().toISOString().split('T')[0]}.txt`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    });
+    
+    importBtn.addEventListener('click', () => {
+        importFile.click();
+    });
+
+    importFile.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const content = e.target.result;
+                const importedRecords = parseImportedText(content);
+                if (importedRecords.length === 0) {
+                    showMessage('Archivo vacío o formato incorrecto', 'No se encontraron registros válidos en el archivo seleccionado.', true);
+                    return;
+                }
+                scheduleRecords.push(...importedRecords);
+                saveToLocalStorage();
+                renderTable();
+                showMessage('Importación exitosa', `${importedRecords.length} registro(s) se han importado correctamente.`);
+            } catch (error) {
+                showMessage('Error de importación', 'El archivo no tiene el formato correcto o está dañado.', true);
+                console.error("Error al procesar el archivo:", error);
+            } finally {
+                event.target.value = null;
+            }
+        };
+        reader.onerror = () => {
+            showMessage('Error de lectura', 'No se pudo leer el archivo seleccionado.', true);
+        };
+        reader.readAsText(file);
+    });
+
+    function parseImportedText(text) {
+        const imported = [];
+        const recordsRaw = text.split('----------------------------------------').filter(r => r.trim() !== '');
+        const signaturePlaceholder = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40" viewBox="0 0 100 40"><text x="50" y="25" font-family="Arial, sans-serif" font-size="10" fill="#888" text-anchor="middle">FIRMADO (importado)</text></svg>');
+        for (const recordText of recordsRaw) {
+            const lines = recordText.trim().split('\n');
+            const record = { id: Date.now() + Math.random() };
+            let isSigned = false;
+            lines.forEach(line => {
+                const [key, ...valueParts] = line.split(':');
+                const value = valueParts.join(':').trim();
+                if (key.startsWith('Empleado')) record.employeeName = value;
+                else if (key.startsWith('Fecha')) record.workDate = value;
+                else if (key.startsWith('Entrada')) record.clockInTime = value;
+                else if (key.startsWith('Salida')) record.clockOutTime = value;
+                else if (key.startsWith('Horas Totales')) record.totalHours = value;
+                else if (key.startsWith('Incidencias')) record.incidents = value === 'Ninguna' ? '' : value;
+                else if (key.startsWith('Firmado') && value === 'Si') isSigned = true;
+            });
+            if (record.employeeName && record.workDate && record.clockInTime) {
+                record.signature = isSigned ? signaturePlaceholder : '';
+                imported.push(record);
+            }
+        }
+        return imported;
+    }
+
+    clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
+    closeModalBtn.addEventListener('click', closeModal);
+    window.addEventListener('resize', resizeCanvas);
+
+    // --- INICIALIZACIÓN DE LA APP ---
+    renderTable();
+    resizeCanvas();
+});
+</script>
+
+</body>
+</html>
