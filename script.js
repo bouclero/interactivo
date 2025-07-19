@@ -1,4 +1,4 @@
-// Horario Laboral - JavaScript
+// Horario Laboral Interactivo - JavaScript
 class HorarioApp {
     constructor() {
         this.currentData = {
@@ -20,30 +20,31 @@ class HorarioApp {
         this.setupEventListeners();
         this.setupSignatureCanvas();
         
-        // Cargar datos guardados primero
+        // Establecer el año y mes actuales por defecto ANTES de intentar cargar datos
+        const currentYear = new Date().getFullYear().toString();
+        const currentMonth = (new Date().getMonth() + 1).toString();
+
+        document.getElementById("yearInput").value = currentYear;
+        document.getElementById("monthSelect").value = currentMonth;
+        
+        this.currentData.year = currentYear;
+        this.currentData.month = currentMonth;
+
+        // Cargar datos guardados DESPUÉS de establecer los valores por defecto
         this.loadSavedData();
 
-        // Establecer el año y mes actuales por defecto si no se cargaron datos
-        // o si los datos cargados no tienen un año/mes válido.
-        // Esto asegura que siempre haya un mes y año seleccionados al inicio.
-        if (!this.currentData.year || isNaN(parseInt(this.currentData.year))) {
-            const currentYear = new Date().getFullYear().toString();
-            document.getElementById("yearInput").value = currentYear;
-            this.currentData.year = currentYear;
-        }
-        if (!this.currentData.month || isNaN(parseInt(this.currentData.month))) {
-            const currentMonth = (new Date().getMonth() + 1).toString();
-            document.getElementById("monthSelect").value = currentMonth;
-            this.currentData.month = currentMonth;
-        }
-
         // Asegurarse de que los campos de entrada reflejen los datos cargados o por defecto
+        // Es crucial que estos valores se establezcan DESPUÉS de loadSavedData()
+        // y DESPUÉS de la lógica de inicialización de año/mes por defecto.
         document.getElementById("workerName").value = this.currentData.workerName;
         document.getElementById("monthSelect").value = this.currentData.month;
         document.getElementById("yearInput").value = this.currentData.year;
 
         // Generar la tabla después de que los datos iniciales o cargados estén listos
         this.generateScheduleTable();
+
+        console.log("INIT: App initialized. currentData:", this.currentData);
+        console.log("INIT: localStorage 'saved_schedules':", localStorage.getItem("saved_schedules"));
     }
 
     setupEventListeners() {
@@ -327,6 +328,9 @@ class HorarioApp {
             localStorage.setItem("saved_schedules", JSON.stringify(savedSchedules));
 
             this.showNotification("Datos guardados correctamente", "success");
+            console.log("SAVE: Data saved. currentData:", this.currentData);
+            console.log("SAVE: localStorage 'saved_schedules':", localStorage.getItem("saved_schedules"));
+            console.log("SAVE: localStorage '" + saveKey + "':", localStorage.getItem(saveKey));
         } catch (error) {
             console.error("Error al guardar:", error);
             this.showNotification("Error al guardar los datos", "error");
@@ -344,6 +348,7 @@ class HorarioApp {
 
             // Crear un selector para elegir qué horario cargar
             this.showScheduleSelector(savedSchedules);
+            console.log("LOAD: Displaying schedule selector.");
         } catch (error) {
             console.error("Error al cargar:", error);
             this.showNotification("Error al cargar los datos", "error");
@@ -440,6 +445,7 @@ class HorarioApp {
             const savedData = localStorage.getItem(saveKey);
             if (!savedData) {
                 this.showNotification("No se encontraron los datos", "error");
+                console.log("LOAD_SCHEDULE: No data found for key:", saveKey);
                 return;
             }
 
@@ -464,6 +470,7 @@ class HorarioApp {
             }
 
             this.showNotification("Datos cargados correctamente", "success");
+            console.log("LOAD_SCHEDULE: Data loaded for key:", saveKey, "currentData:", this.currentData);
         } catch (error) {
             console.error("Error al cargar los datos:", error);
             this.showNotification("Error al cargar los datos", "error");
@@ -471,30 +478,26 @@ class HorarioApp {
     }
 
     loadSavedData() {
-        // Cargar el último horario guardado automáticamente si existe
+        // Simplificar la lógica de carga para asegurar que siempre se intente cargar el último horario guardado
         const savedSchedules = JSON.parse(localStorage.getItem("saved_schedules") || "[]");
+        console.log("LOAD_SAVED_DATA: Retrieved 'saved_schedules':", savedSchedules);
+
         if (savedSchedules.length > 0) {
             // Ordenar por fecha de guardado y tomar el más reciente
             savedSchedules.sort((a, b) => new Date(b.savedDate) - new Date(a.savedDate));
             const lastSchedule = savedSchedules[0];
             
-            // Solo cargar automáticamente si es del mes actual
-            const currentDate = new Date();
-            const currentMonth = currentDate.getMonth() + 1;
-            const currentYear = currentDate.getFullYear();
-            
-            // Cargar si coincide el trabajador, mes y año
-            const currentWorkerName = document.getElementById("workerName").value;
-            if (lastSchedule.workerName === currentWorkerName && parseInt(lastSchedule.month) === currentMonth && parseInt(lastSchedule.year) === currentYear) {
-                this.loadScheduleData(lastSchedule.key);
-            } else if (!currentWorkerName) { // Si no hay nombre de trabajador, cargar el último guardado para el mes/año actual
-                const schedulesForCurrentMonthYear = savedSchedules.filter(s => 
-                    parseInt(s.month) === currentMonth && parseInt(s.year) === currentYear
-                );
-                if (schedulesForCurrentMonthYear.length > 0) {
-                    this.loadScheduleData(schedulesForCurrentMonthYear[0].key);
-                }
+            // Cargar el último horario guardado
+            console.log("LOAD_SAVED_DATA: Attempting to load last general schedule with key:", lastSchedule.key);
+            const dataToLoad = localStorage.getItem(lastSchedule.key);
+            if (dataToLoad) {
+                this.currentData = JSON.parse(dataToLoad);
+                console.log("LOAD_SAVED_DATA: Successfully loaded data.", this.currentData);
+            } else {
+                console.log("LOAD_SAVED_DATA: Data for key not found in localStorage:", lastSchedule.key);
             }
+        } else {
+            console.log("LOAD_SAVED_DATA: No saved schedules found.");
         }
     }
 
